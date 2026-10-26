@@ -1,0 +1,44 @@
+[Unit]
+Description=GitHub Contribution Ticker - process today's UTC date (one-shot)
+Documentation=file:///opt/hello/src/daily-runner/README.md
+# Only needs the local repository; no network is used.
+RequiresMountsFor=/opt/hello
+
+[Service]
+Type=oneshot
+User=hello-ticker
+Group=hello-ticker
+# Absolute paths: edit /opt/hello (repository) and /usr/bin/node (see `command -v node`).
+WorkingDirectory=/opt/hello
+ExecStart=/usr/bin/node /opt/hello/src/daily-runner/daily-runner.js
+# git must be found; the unit does not use a shell and inherits no login environment.
+Environment=PATH=/usr/local/bin:/usr/bin:/bin
+# stdout/stderr go to the journal: journalctl -u hello-ticker-daily.service
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=hello-ticker-daily
+# A run takes about a second; do not let a hung git command linger.
+TimeoutStartSec=120
+
+# Exit code 75 (another run holds the lock) is reported as a failed run on purpose.
+# No secrets are stored here: the runner needs no tokens (it never pushes or uses the network).
+
+# Resource limits and hardening
+MemoryMax=256M
+TasksMax=64
+NoNewPrivileges=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectSystem=strict
+ProtectHome=yes
+# Commits are written into the repository's .git directory only.
+ReadWritePaths=/opt/hello
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictNamespaces=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+CapabilityBoundingSet=
+RestrictAddressFamilies=AF_UNIX
+UMask=0077

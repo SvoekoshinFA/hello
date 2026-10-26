@@ -1,0 +1,15 @@
+[Unit]
+Description=Daily run of the GitHub Contribution Ticker (13:17 UTC)
+
+[Timer]
+# The schedule is configuration of this timer only; it is not part of the runner's logic.
+OnCalendar=*-*-* 13:17:00 UTC
+# After downtime, one catch-up run starts at boot. That run still processes only the date
+# on which it executes (see README: missed days are restored with the Reconciler).
+Persistent=true
+AccuracySec=1min
+RandomizedDelaySec=0
+Unit=hello-ticker-daily.service
+
+[Install]
+WantedBy=timers.target
