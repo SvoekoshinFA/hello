@@ -1,6 +1,6 @@
 # Pattern module
 
-Pure logic that turns the text `HELLO, WORLD!` into a deterministic pixel map for a GitHub-style activity calendar. It does no Git/GitHub work, I/O, networking or scheduling.
+Pure logic that turns the text `HELLO, WORLD! ` (with a trailing space, which widens the gap between repetitions) into a deterministic pixel map for a GitHub-style activity calendar. It does no Git/GitHub work, I/O, networking or scheduling.
 
 ## Algorithm
 
@@ -8,14 +8,14 @@ All dates are calendar dates (`'YYYY-MM-DD'` or `{ year, month, day }`), convert
 
 ```
 row    = weekday: Mon 0, Tue 1, ... Sun 6
-anchor = first Monday on or after the epoch (2019-10-20, a Sunday -> 2019-10-21)
+anchor = first Monday on or after the epoch (2019-08-19, already a Monday -> itself)
 column = floor((day - anchor) / 7)           one column per calendar week
-strip  = per character: 3 glyph columns + 1 blank column (period 13 * 4 = 52 columns)
-pixel  = strip[column mod 52][row]
+strip  = per character: 3 glyph columns + 1 blank column (period 14 * 4 = 56 columns)
+pixel  = strip[column mod 56][row]
 ```
 
-- Dates before the anchor (including the epoch Sunday itself) are off.
-- Text scrolls one column per week and repeats with no extra offset.
+- Dates before the anchor are off; the epoch Monday itself is off because Monday is never used by the glyphs.
+- Text scrolls one column per week and repeats with no extra offset: after `!` (columns 48-50) come 5 blank columns (its gap, the space and the space's gap).
 - The 3x5 glyph sits on rows 1..5 (Tue..Sat); Monday and Sunday stay empty.
 - Unsupported characters throw `RangeError`.
 
@@ -37,24 +37,24 @@ Configuration (epoch, text, default target commits, gap, rows) lives in [config.
 ```js
 import { isPixelOn, targetCommits } from './pattern.js';
 
-isPixelOn('2019-10-22');       // true  (top of the first H stem)
-targetCommits('2019-10-22');   // 3
-targetCommits('2019-10-21');   // 0
+isPixelOn('2019-08-20');       // true  (top of the first H stem)
+targetCommits('2019-08-20');   // 3
+targetCommits('2019-08-19');   // 0
 ```
 
-## Preview (56 weeks from 2019-10-21, Mon..Sun)
+## Preview (56 weeks from 2019-08-19, Mon..Sun)
 
 ```
 ........................................................
-#.#.###.#...#...###.........#.#.###.##..#...##...#..#.#.
-#.#.#...#...#...#.#.........#.#.#.#.#.#.#...#.#..#..#.#.
-###.###.#...#...#.#.........#.#.#.#.##..#...#.#..#..###.
-#.#.#...#...#...#.#..#......###.#.#.#.#.#...#.#.....#.#.
-#.#.###.###.###.###.#.......#.#.###.#.#.###.##...#..#.#.
+#.#.###.#...#...###.........#.#.###.##..#...##...#......
+#.#.#...#...#...#.#.........#.#.#.#.#.#.#...#.#..#......
+###.###.#...#...#.#.........#.#.#.#.##..#...#.#..#......
+#.#.#...#...#...#.#..#......###.#.#.#.#.#...#.#.........
+#.#.###.###.###.###.#.......#.#.###.#.#.###.##...#......
 ........................................................
 ```
 
-After 52 columns the text repeats.
+After 56 columns the text repeats (the last 5 columns above are the blank separator).
 
 ## Tests
 

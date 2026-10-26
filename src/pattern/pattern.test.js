@@ -22,14 +22,22 @@ const EXPECTED_FONT = {
 
 const dir = fileURLToPath(new URL('.', import.meta.url));
 
+/** Epoch from config.js (a Monday), so column 0 starts on the epoch itself. */
+const EPOCH = '2019-08-19';
+/** Number of columns before the text repeats: 14 characters * (3 + 1). */
+const PERIOD = 56;
+
 /** Day string offset by `days` from a YYYY-MM-DD string, computed in UTC. */
 function addDays(date, days) {
   return new Date(Date.parse(`${date}T00:00:00Z`) + days * 86_400_000).toISOString().slice(0, 10);
 }
 
-/** Pixel column (7 booleans, Mon..Sun) for the n-th week after the first Monday after the epoch. */
+/** Whole weeks between the epoch and a Monday. */
+const weeksSinceEpoch = (monday) => (Date.parse(`${monday}T00:00:00Z`) - Date.parse(`${EPOCH}T00:00:00Z`)) / (7 * 86_400_000);
+
+/** Pixel column (7 booleans, Mon..Sun) for the n-th week after the epoch. */
 function columnAt(n) {
-  return getWeek(addDays('2019-10-21', 7 * n));
+  return getWeek(addDays(EPOCH, 7 * n));
 }
 
 const glyphColumn = (char, x) =>
@@ -67,45 +75,47 @@ test('4. repeated calls for one date return the same result', () => {
 });
 
 test('5. dates before the epoch are off', () => {
-  for (let d = -400; d < 0; d++) assert.equal(isPixelOn(addDays('2019-10-20', d)), false);
+  for (let d = -400; d < 0; d++) assert.equal(isPixelOn(addDays(EPOCH, d)), false);
   assert.equal(isPixelOn('1999-01-01'), false);
-  assert.equal(targetCommits('2019-10-22') > 0, true);
-  assert.equal(targetCommits('2019-10-19'), 0);
+  assert.equal(targetCommits('2019-08-20') > 0, true);
+  assert.equal(targetCommits('2019-08-18'), 0);
 });
 
 test('6. epoch date and following weeks are calculated correctly', () => {
-  assert.equal(isPixelOn('2019-10-20'), false); // epoch Sunday, row 6 is blank
-  assert.equal(isPixelOn('2019-10-22'), true); // Tuesday of column 0: top of H's left stem
+  assert.equal(CONFIG.epoch, EPOCH);
+  assert.equal(CONFIG.text, 'HELLO, WORLD! ');
+  assert.equal(isPixelOn(EPOCH), false); // epoch Monday, row 0 is blank
+  assert.equal(isPixelOn('2019-08-20'), true); // Tuesday of column 0: top of H's left stem
   assert.deepEqual(columnAt(0), glyphColumn('H', 0));
   assert.deepEqual(columnAt(1), glyphColumn('H', 1));
   assert.deepEqual(columnAt(3), Array(7).fill(false)); // gap after H
   assert.deepEqual(columnAt(4), glyphColumn('E', 0));
-  assert.deepEqual(getWeek('2019-10-14'), Array(7).fill(false)); // before the first column
+  assert.deepEqual(getWeek('2019-08-12'), Array(7).fill(false)); // before the first column
 });
 
 test('7. Monday maps to row 0 and Sunday to row 6', () => {
   // L column 0 is a full 5-pixel stem: placed at the top it covers Monday..Friday,
   // placed at glyphTopRow 2 it covers Wednesday..Sunday.
   const top = createPattern({ text: 'L', glyphTopRow: 0 });
-  assert.deepEqual(top.getWeek('2019-10-21'), [true, true, true, true, true, false, false]);
+  assert.deepEqual(top.getWeek(EPOCH), [true, true, true, true, true, false, false]);
   const bottom = createPattern({ text: 'L', glyphTopRow: 2 });
-  assert.deepEqual(bottom.getWeek('2019-10-21'), [false, false, true, true, true, true, true]);
-  const week = getPattern('2019-10-21', '2019-10-27');
+  assert.deepEqual(bottom.getWeek(EPOCH), [false, false, true, true, true, true, true]);
+  const week = getPattern(EPOCH, '2019-08-25');
   assert.deepEqual(week.map((d) => d.row), [0, 1, 2, 3, 4, 5, 6]);
 });
 
 test('8. month boundary does not reset the sequence', () => {
-  assert.deepEqual(getPattern('2019-10-28', '2019-11-10').map((d) => d.on), [
-    ...getWeek('2019-10-28'),
-    ...getWeek('2019-11-04'),
+  assert.deepEqual(getPattern('2019-08-26', '2019-09-08').map((d) => d.on), [
+    ...getWeek('2019-08-26'),
+    ...getWeek('2019-09-02'),
   ]);
-  assert.deepEqual(columnAt(2), glyphColumn('H', 2)); // 2019-11-04 is column 2
-  assert.deepEqual(getWeek('2019-11-04'), glyphColumn('H', 2));
+  assert.deepEqual(columnAt(2), glyphColumn('H', 2)); // 2019-09-02 is column 2
+  assert.deepEqual(getWeek('2019-09-02'), glyphColumn('H', 2));
 });
 
 test('9. 31 Dec -> 1 Jan does not reset the sequence', () => {
   // 2019-12-30 is a Monday and its week spans the year change.
-  const n = (Date.parse('2019-12-30T00:00:00Z') - Date.parse('2019-10-21T00:00:00Z')) / (7 * 86_400_000);
+  const n = weeksSinceEpoch('2019-12-30');
   assert.deepEqual(getWeek('2019-12-30'), columnAt(n));
   assert.deepEqual(getWeek('2020-01-06'), columnAt(n + 1));
 });
@@ -115,30 +125,31 @@ test('10. leap year does not break the sequence', () => {
   assert.doesNotThrow(() => isPixelOn('2024-02-29'));
   assert.throws(() => isPixelOn('2023-02-29'), RangeError);
   const monday = '2024-02-26';
-  const n = (Date.parse(`${monday}T00:00:00Z`) - Date.parse('2019-10-21T00:00:00Z')) / (7 * 86_400_000);
+  const n = weeksSinceEpoch(monday);
   assert.deepEqual(getWeek(monday), columnAt(n));
   assert.deepEqual(getWeek('2024-03-04'), columnAt(n + 1));
 });
 
 test('11. end of the text continues into the next repetition', () => {
   const period = CONFIG.text.length * (GLYPH_WIDTH + CONFIG.glyphGap);
-  assert.equal(period, 52);
-  assert.deepEqual(columnAt(period - 1), Array(7).fill(false)); // gap after '!'
-  assert.deepEqual(columnAt(period), columnAt(0));
-  assert.deepEqual(columnAt(period + 4), columnAt(4));
-  assert.deepEqual(columnAt(period * 7 + 1), columnAt(1));
-  assert.deepEqual(columnAt(period - 3), glyphColumn('!', 1));
+  assert.equal(period, PERIOD);
+  // '!' occupies columns 48..50 (gap 51); the trailing space adds columns 52..55 (and its gap).
+  assert.deepEqual(columnAt(49), glyphColumn('!', 1));
+  for (let n = 51; n < PERIOD; n++) assert.deepEqual(columnAt(n), Array(7).fill(false), `column ${n}`);
+  assert.deepEqual(columnAt(PERIOD), columnAt(0));
+  assert.deepEqual(columnAt(PERIOD + 4), columnAt(4));
+  assert.deepEqual(columnAt(PERIOD * 7 + 1), columnAt(1));
 });
 
 test('12. changing target commits does not change the pixel map', () => {
   const a = createPattern({ targetCommits: 3 });
   const b = createPattern({ targetCommits: 9 });
-  const strip = (p) => p.getPattern('2019-10-14', '2020-12-31').map((d) => d.on);
+  const strip = (p) => p.getPattern('2019-08-12', '2020-12-31').map((d) => d.on);
   assert.deepEqual(strip(a), strip(b));
-  assert.equal(a.targetCommits('2019-10-22'), 3);
-  assert.equal(b.targetCommits('2019-10-22'), 9);
-  assert.equal(b.targetCommits('2019-10-21'), 0);
-  assert.equal(targetCommits('2019-10-22'), CONFIG.targetCommits);
+  assert.equal(a.targetCommits('2019-08-20'), 3);
+  assert.equal(b.targetCommits('2019-08-20'), 9);
+  assert.equal(b.targetCommits(EPOCH), 0);
+  assert.equal(targetCommits('2019-08-20'), CONFIG.targetCommits);
   assert.throws(() => createPattern({ targetCommits: -1 }), RangeError);
 });
 
@@ -152,12 +163,12 @@ test('13. get_pattern is identical for identical ranges and inclusive', () => {
 });
 
 test('get_week requires a Monday', () => {
-  assert.throws(() => getWeek('2019-10-22'), /Monday/);
-  assert.equal(getWeek('2019-10-21').length, 7);
+  assert.throws(() => getWeek('2019-08-20'), /Monday/);
+  assert.equal(getWeek(EPOCH).length, 7);
 });
 
 test('input accepts strings and plain objects, rejects Date objects', () => {
-  assert.equal(isPixelOn({ year: 2019, month: 10, day: 22 }), true);
+  assert.equal(isPixelOn({ year: 2019, month: 8, day: 20 }), true);
   assert.throws(() => isPixelOn(new Date()), TypeError);
   assert.throws(() => isPixelOn('2019-1-1'), TypeError);
 });
@@ -170,7 +181,7 @@ test('14. module does not use local time and is time-zone independent', () => {
   }
   const script = `
     import { getPattern } from ${JSON.stringify(new URL('./pattern.js', import.meta.url).href)};
-    process.stdout.write(JSON.stringify(getPattern('2019-10-14', '2021-12-31')));`;
+    process.stdout.write(JSON.stringify(getPattern('2019-08-12', '2021-12-31')));`;
   const outputs = ['UTC', 'Pacific/Kiritimati', 'America/Los_Angeles', 'Asia/Tbilisi'].map((TZ) =>
     execFileSync(process.execPath, ['--input-type=module', '-e', script], {
       env: { ...process.env, TZ },
@@ -182,8 +193,8 @@ test('14. module does not use local time and is time-zone independent', () => {
 });
 
 test('ASCII preview renders the text and repeats', () => {
-  const art = renderAscii('2019-10-21', 104).split('\n');
+  const art = renderAscii(EPOCH, PERIOD * 2).split('\n');
   assert.equal(art.length, 7);
-  assert.equal(art[0], '.'.repeat(104)); // Monday row is never used
-  for (const line of art) assert.equal(line.slice(0, 52), line.slice(52));
+  assert.equal(art[0], '.'.repeat(PERIOD * 2)); // Monday row is never used
+  for (const line of art) assert.equal(line.slice(0, PERIOD), line.slice(PERIOD));
 });
