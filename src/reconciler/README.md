@@ -110,3 +110,14 @@ node --test src/reconciler/reconciler.test.js     # Reconciler only
 ```
 
 Integration tests create temporary local repositories (path with a space, isolated git config, no remote, network, tokens or SSH keys) and clean them up afterwards.
+
+## Backfill and purge scripts
+
+```
+npm run ticker:backfill                 # create all missing marker commits from CONFIG.epoch to today (UTC)
+npm run ticker:backfill -- --dry-run    # only report
+npm run ticker:purge                    # dry-run: how many marker commits would be removed
+npm run ticker:purge -- --write         # remove every marker commit from the current branch
+```
+
+`purge` rewrites the current branch's history: the old tip is saved as `refs/ticker-backup/<UTC time>` (restore with `git reset --hard <ref>`), file contents never change, other commits are re-created with the same tree, message, author and committer (signatures are lost), merges are preserved, nothing is pushed (an already pushed branch needs a manual force push). These two scripts are not covered by automated tests; they were checked manually in temporary repositories.

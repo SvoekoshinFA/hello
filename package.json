@@ -4,6 +4,8 @@
   "type": "module",
   "scripts": {
     "test": "node --test \"src/**/*.test.js\"",
-    "ticker:daily": "node src/daily-runner/daily-runner.js"
+    "ticker:daily": "node src/daily-runner/daily-runner.js",
+    "ticker:backfill": "node src/reconciler/backfill.js",
+    "ticker:purge": "node src/reconciler/purge.js"
   }
 }
