@@ -4,7 +4,7 @@ export const CONFIG = Object.freeze({
   epoch: '2019-08-19',
   text: 'HELLO, WORLD! ',
   /** Default target commit count for an enabled pixel. Does not affect geometry. */
-  targetCommits: 3,
+  targetCommits: 5,
   /** Blank columns after every character (including the last, which separates repetitions). */
   glyphGap: 1,
   /** Calendar rows (Monday = 0 ... Sunday = 6). */
